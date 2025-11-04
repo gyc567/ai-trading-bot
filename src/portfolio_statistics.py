@@ -355,27 +355,34 @@ class PortfolioStatistics:
                 durations[coin] = int(duration.total_seconds() / 60)
         return durations
     
-    def calculate_sharpe_ratio(self, hours: int = 24) -> float:
-        """计算夏普比率（基于最近N小时的交易）
+    def calculate_sharpe_ratio(self, hours: int = None) -> float:
+        """计算夏普比率
         
         夏普比率 = 平均收益率 / 收益率标准差
         对于交易系统，我们用每笔交易的收益率百分比来计算
+        
+        Args:
+            hours: 如果为None，计算所有历史交易；如果指定，只计算最近N小时的交易
         """
         if not self.trade_history or len(self.trade_history) < 2:
             return 0.0
         
-        # 获取最近N小时的交易
-        cutoff_time = datetime.now() - timedelta(hours=hours)
-        recent_trades = [
-            t for t in self.trade_history
-            if datetime.fromisoformat(t['exit_time']) > cutoff_time
-        ]
+        # 如果指定了hours，只计算最近N小时的交易；否则计算所有历史交易
+        if hours is not None:
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            trades = [
+                t for t in self.trade_history
+                if datetime.fromisoformat(t['exit_time']) > cutoff_time
+            ]
+        else:
+            # 计算所有历史交易
+            trades = self.trade_history
         
-        if len(recent_trades) < 2:
+        if len(trades) < 2:
             return 0.0
         
         # 提取每笔交易的收益率百分比
-        returns = [t['pnl_percent'] for t in recent_trades]
+        returns = [t['pnl_percent'] for t in trades]
         
         # 计算平均收益率
         mean_return = sum(returns) / len(returns)
@@ -404,8 +411,8 @@ class PortfolioStatistics:
         # 最近1小时交易频率
         freq_stats = self.get_trading_frequency(1)
         
-        # 计算夏普比率（最近24小时）
-        sharpe_ratio = self.calculate_sharpe_ratio(24)
+        # 计算夏普比率（所有历史交易）
+        sharpe_ratio = self.calculate_sharpe_ratio(hours=None)
         
         stats_text = f"""
     【系统运行统计】
@@ -417,7 +424,7 @@ class PortfolioStatistics:
     - 历史总盈亏: {self.total_pnl:+.2f} USDT
     - 整体胜率: {(self.win_trades/self.total_trades*100) if self.total_trades > 0 else 0:.1f}%
     - 最近24小时: {recent_stats['total']}笔交易，胜率{recent_stats['win_rate']:.1f}%，盈亏{recent_stats['total_pnl']:+.2f} USDT
-    - 夏普比率（最近24小时）: {sharpe_ratio:.2f} {'✅' if sharpe_ratio > 0.7 else '⚠️' if sharpe_ratio > 0 else '❌'}
+    - 夏普比率（所有历史交易）: {sharpe_ratio:.2f} {'✅' if sharpe_ratio > 0.7 else '⚠️' if sharpe_ratio > 0 else '❌'}
     
     ⏱️ 【交易频率监控】
     - 最近1小时: {freq_stats['trade_count']}笔交易 (频率: {freq_stats['frequency']:.2f}笔/小时) {freq_stats['warning']}
